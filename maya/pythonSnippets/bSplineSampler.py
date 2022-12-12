@@ -111,19 +111,19 @@ def lengthSequence(deltaSequence):
 # binary search
 def closestIndexInLengthSq(lengthSq, val):
     # baseCase
-    mid = int(len(lengthSq)/2)
-    if val > lengthSq[-1]:
+    mid = int((len(lengthSq))/2)
+    if val >= lengthSq[-1]:
         return len(lengthSq) - 1
-    if val < lengthSq[0]:
-        return 0 
-    if val == lengthSq[mid]:
-        return mid
+    if val <= lengthSq[0]:
+        return 0
     # recCase
     if val > lengthSq[mid]:
-        return mid + closestIndexInLengthSq(lengthSq[mid+1:], val)
-    elif val < lengthSq[mid]:
-        return closestIndexInLengthSq(lengthSq[:mid], val)         
-        
+        return mid + closestIndexInLengthSq(lengthSq[mid:], val) 
+    if val < lengthSq[mid]:
+        return closestIndexInLengthSq(lengthSq[:mid], val)
+    return mid
+
+
 def interpolateAtLength(pSq, lengthSq, lengthVal):
     closestSample = closestIndexInLengthSq(lengthSq, lengthVal)
     lenDif = lengthVal - lengthSq[closestSample]
@@ -165,8 +165,8 @@ cvNames = createControlPoints(cpPos)
 # Build and update the curve
 # Run this chunc only if you want to update the curve
 # You can move control points, change number of samples or a degree
-numSamples = 50
-degree = 4 # Degree of a curve, you can try 1, 2, 3, 4 or 5
+numSamples = 80
+degree = 3 # Degree of a curve, you can try 1, 2, 3, 4 or 5
 knots = createKnotVector(len(cvNames), degree)
 cvPos = getCpPositions(cvNames)
 pSq = sampleBSpline(numSamples, degree, cvPos, knots)
@@ -176,14 +176,13 @@ if cmds.objExists("InterpolJnt"):
     cmds.delete("InterpolJnt")
 jntAtLen = cmds.createNode("joint", n = "InterpolJnt")
 
-lengthVal = 3.4
+lengthVal = 1.3
 posAtLen = interpolateAtLength(pSq, lengthSq, lengthVal)
-     
+
 cmds.setAttr(jntAtLen+".tx", posAtLen[0])
 cmds.setAttr(jntAtLen+".ty", posAtLen[1])
-cmds.setAttr(jntAtLen+".radius", 0.4)
+cmds.setAttr(jntAtLen+".radius", 0.2)
 cmds.setAttr(jntAtLen+".overrideEnabled", 1)
 cmds.setAttr(jntAtLen+".overrideColor",17)
 
 cmds.select(cl = 1)
-
