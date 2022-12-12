@@ -1,4 +1,6 @@
 from maya import cmds
+import math
+
 # Create control points in maya scene
 # Do it once, than update the curve
 def createControlPoints(cpPos):
@@ -21,7 +23,7 @@ def getCpPositions(cvs):
         cvPos.append(cv)
     return cvPos        
                 
-# B-spline basis functions
+# B-spline basis functions (De Boor's algorithm)
 def B(x, k, i, t):
     if k == 0:
         return 1.0 if t[i] <= x < t[i+1] else 0.0
@@ -71,19 +73,82 @@ def sampleBSpline(numSamples, degree, cvPos, knots):
     if cmds.objExists("bSpline"):
         cmds.delete("bSpline")
     curveGrp = cmds.createNode("transform", n = "bSpline")
+    pSequence = []
     for i in range(numSamples+1):
         x = float(i)/numSamples
         bP = bspline(x, knots, cvPos, degree)
+        pSequence.append(bP)
         jnt = cmds.createNode("joint")
         cmds.setAttr(jnt+".tx", bP[0])
         cmds.setAttr(jnt+".ty", bP[1])
         cmds.setAttr(jnt+".radius", 0.1)
         cmds.setAttr(jnt+".overrideEnabled", 1)
         cmds.setAttr(jnt+".overrideColor",13)
-        
         cmds.parent(jnt, curveGrp)
-    cmds.select(cl = 1)      
-    
+    cmds.select(cl = 1)
+    return pSequence   
+
+# differentiate pSequence
+def differentiate(pSequence):
+    deltaSequence = []
+    delta = [0.0, 0.0]
+    for i in range(len(pSequence)-1):
+        dx = pSequence[i+1][0] - pSequence[i][0]
+        dy = pSequence[i+1][1] - pSequence[i][1]
+        delta = [dx, dy]
+        deltaSequence.append(delta)
+    deltaSequence.append(delta)
+    return deltaSequence
+ 
+# computing the lengh sequence
+def lengthSequence(deltaSequence):
+    lengthSq = [0.0]
+    for i in range(len(deltaSequence) - 1):
+        lengthSq.append(lengthSq[-1] + math.sqrt(deltaSequence[i][0]**2+deltaSequence[i][1]**2))
+    return lengthSq    
+        
+# computing closest index in lenght sequence
+# binary search
+def closestIndexInLengthSq(lengthSq, val):
+    # baseCase
+    mid = int(len(lengthSq)/2)
+    if val > lengthSq[-1]:
+        return len(lengthSq) - 1
+    if val < lengthSq[0]:
+        return 0 
+    if val == lengthSq[mid]:
+        return mid
+    # recCase
+    if val > lengthSq[mid]:
+        return mid + closestIndexInLengthSq(lengthSq[mid+1:], val)
+    elif val < lengthSq[mid]:
+        return closestIndexInLengthSq(lengthSq[:mid], val)         
+        
+def interpolateAtLength(pSq, lengthSq, lengthVal):
+    closestSample = closestIndexInLengthSq(lengthSq, lengthVal)
+    lenDif = lengthVal - lengthSq[closestSample]
+    if lengthVal < lengthSq[-1]:
+        p0 = pSq[closestSample]
+        p1 = pSq[closestSample+1]
+        delta = [p1[0]-p0[0], p1[1]-p0[1]]
+        deltaLen = math.sqrt(delta[0]**2+delta[1]**2)
+        deltaNorm = [0.0, 0.0]
+        if deltaLen > 0.0:
+            deltaNorm = [delta[0]/deltaLen,delta[1]/deltaLen]
+        deltaRescaled = [deltaNorm[0]*lenDif, deltaNorm[1]*lenDif]
+        return [p0[0]+deltaRescaled[0], p0[1]+deltaRescaled[1]] 
+    # boundary conditions
+    if lengthVal > lengthSq[-1]:
+        p0 = pSq[closestSample]
+        p1 = pSq[closestSample-1]
+        delta = [p0[0]-p1[0], p0[1]-p1[1]]
+        deltaLen = math.sqrt(delta[0]**2+delta[1]**2)
+        deltaNorm = [0.0, 0.0]
+        if deltaLen > 0.0:
+            deltaNorm = [delta[0]/deltaLen,delta[1]/deltaLen]
+        deltaRescaled = [deltaNorm[0]*lenDif, deltaNorm[1]*lenDif]
+        return [p0[0]+deltaRescaled[0], p0[1]+deltaRescaled[1]] 
+         
 # Run this code only once
 # Than update the cureve
 cpPos = [
@@ -101,7 +166,24 @@ cvNames = createControlPoints(cpPos)
 # Run this chunc only if you want to update the curve
 # You can move control points, change number of samples or a degree
 numSamples = 50
-degree = 5 # Degree of a curve, you can try 1, 2, 3, 4, 5 or 6 (based on number of cvs)
+degree = 4 # Degree of a curve, you can try 1, 2, 3, 4 or 5
 knots = createKnotVector(len(cvNames), degree)
 cvPos = getCpPositions(cvNames)
-sampleBSpline(numSamples, degree, cvPos, knots)
+pSq = sampleBSpline(numSamples, degree, cvPos, knots)
+diffSq = differentiate(pSq)
+lengthSq = lengthSequence(diffSq)
+if cmds.objExists("InterpolJnt"):
+    cmds.delete("InterpolJnt")
+jntAtLen = cmds.createNode("joint", n = "InterpolJnt")
+
+lengthVal = 3.4
+posAtLen = interpolateAtLength(pSq, lengthSq, lengthVal)
+     
+cmds.setAttr(jntAtLen+".tx", posAtLen[0])
+cmds.setAttr(jntAtLen+".ty", posAtLen[1])
+cmds.setAttr(jntAtLen+".radius", 0.4)
+cmds.setAttr(jntAtLen+".overrideEnabled", 1)
+cmds.setAttr(jntAtLen+".overrideColor",17)
+
+cmds.select(cl = 1)
+
