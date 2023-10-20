@@ -308,5 +308,9 @@ def updateCurve(cvNames, numSamples = 120, degree = 3, pAtLength = 2.18):
     tangent = getTangentAtLength(diffSq, lengthSq, pAtLength)
     samplePoints([posAtLen], 0.1, 17, "pointAtLength")
     drawTangent(tangent, posAtLen)
+    print("Update!")
     
-updateCurve(cvNames, numSamples = 120, degree = 3, pAtLength = 2.18)
+if __name__ == "__main__":
+    updateCurve(cvNames, numSamples = 120, degree = 3, pAtLength = 2.18)
+
+
